@@ -19,35 +19,37 @@
 import sys
 import argparse
 from impacket.dcerpc.v5 import transport, ndr, dcomrt
+from impacket.dcerpc.v5.ndr import NDRSTRUCT, NDRCALL, NDRPOINTER
+from impacket.dcerpc.v5.dtypes import DWORD, LPWSTR
 from impacket.dcerpc.v5.rpcrt import RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_CONNECT
-from impacket.uuid import uuidtostring
+from impacket.uuid import bin_to_string as uuidtostring
 
 # --- MS-ICRP Structures ---
 
-class CERTTRANSBLOB(ndr.NDRSTRUCT):
+class CERTTRANSBLOB(NDRSTRUCT):
     structure = (
-        ('cb', ndr.DWORD),
-        ('pb', ndr.NDRPOINTER),
+        ('cb', DWORD),
+        ('pb', NDRPOINTER),
     )
 
-class CertServerRequest(ndr.NDRCALL):
+class CertServerRequest(NDRCALL):
     opnum = 0
     structure = (
-        ('dwFlags', ndr.DWORD),
-        ('pwszAuthority', ndr.LPWSTR),
-        ('pdwRequestId', ndr.DWORD), # In/Out
-        ('pwszAttributes', ndr.LPWSTR),
+        ('dwFlags', DWORD),
+        ('pwszAuthority', LPWSTR),
+        ('pdwRequestId', DWORD), # In/Out
+        ('pwszAttributes', LPWSTR),
         ('pctbRequest', CERTTRANSBLOB),
     )
 
-class CertServerRequestResponse(ndr.NDRCALL):
+class CertServerRequestResponse(NDRCALL):
     structure = (
-        ('pdwRequestId', ndr.DWORD),
-        ('pdwDisposition', ndr.DWORD),
+        ('pdwRequestId', DWORD),
+        ('pdwDisposition', DWORD),
         ('pctbCertChain', CERTTRANSBLOB),
         ('pctbEncodedCert', CERTTRANSBLOB),
         ('pctbDispositionMessage', CERTTRANSBLOB),
-        ('ReturnValue', ndr.DWORD), # HRESULT
+        ('ReturnValue', DWORD), # HRESULT
     )
 
 # --- Nexus ESC11 Implementation ---
