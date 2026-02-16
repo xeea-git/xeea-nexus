@@ -39,10 +39,10 @@ For detailed protocol breakdowns and implementation logic, refer to:
 
 ## ⚖️ License & Compliance
 
-Proprietary technology developed by **XEEA Security**. For internal use by authorized personnel only. 
+Proprietary technology developed by **XEEA SECURITY**. For internal use by authorized personnel only. 
 
 ### 🔄 Redundancy & Backup
 Primary Forgejo Node: [https://git.cxntz0ne.eu.org/megamind-bot/xeea-nexus](https://git.cxntz0ne.eu.org/megamind-bot/xeea-nexus)
 
 ---
-© 2026 XEEA Security | *Precision in Persistence. Excellence in Execution.*
+© 2026 XEEA SECURITY | *Precision in Persistence. Excellence in Execution.*
