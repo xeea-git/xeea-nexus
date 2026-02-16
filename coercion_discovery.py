@@ -38,21 +38,21 @@ class NexusCoercionDiscovery:
             'uuid': '12345678-1234-ABCD-EF00-0123456789AB',
             'version': '1.0',
             'pipes': ['\\pipe\\spoolss'],
-            'vuln_id': 'PrinterBug'
+            'vector_id': 'XEEA-RPRN-01'
         },
         'MS-EFSRPC': {
             'name': 'EFS Remote (MS-EFSRPC)',
             'uuid': 'c681d3ad-9e4b-47a2-be56-4c47411af910',
             'version': '1.0',
             'pipes': ['\\pipe\\efsrpc', '\\pipe\\lsarpc'],
-            'vuln_id': 'PetitPotam'
+            'vector_id': 'XEEA-EFSR-02'
         },
         'MS-FSRVP': {
             'name': 'File Server VSS (MS-FSRVP)',
             'uuid': 'a8e0653c-2744-4389-9157-370dfb334ae0',
             'version': '1.0',
             'pipes': ['\\pipe\\FssagentRpc'],
-            'vuln_id': 'ShadowCoerce'
+            'vector_id': 'XEEA-FSRV-03'
         }
     }
 
@@ -74,7 +74,10 @@ class NexusCoercionDiscovery:
         self.port = port
         
         if hashes:
-            self.lmhash, self.nthash = hashes.split(':')
+            try:
+                self.lmhash, self.nthash = hashes.split(':')
+            except ValueError:
+                pass
 
     def _probe_pipe(self, target, pipe, uuid, version):
         """
@@ -145,7 +148,8 @@ class NexusCoercionDiscovery:
                     target_res['protocols'][proto_key] = {
                         'status': "[bold green]VULNERABLE[/bold green]" if is_available else "[dim red]NOT FOUND[/dim red]",
                         'details': details,
-                        'available': is_available
+                        'available': is_available,
+                        'vector': proto_info['vector_id']
                     }
                     progress.advance(target_task)
                 
@@ -164,13 +168,13 @@ class NexusCoercionDiscovery:
         table.add_column("MS-RPRN", justify="center")
         table.add_column("MS-EFSRPC", justify="center")
         table.add_column("MS-FSRVP", justify="center")
-        table.add_column("Vector Summary", style="dim italic")
+        table.add_column("Nexus Vectors", style="dim italic")
 
         for res in results:
             vectors = []
             for k, v in res['protocols'].items():
                 if v['available']:
-                    vectors.append(self.PROTOCOLS[k]['vuln_id'])
+                    vectors.append(v['vector'])
             
             summary = ", ".join(vectors) if vectors else "No exposure detected"
             
