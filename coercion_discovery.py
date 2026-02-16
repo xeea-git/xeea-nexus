@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
     _   __                         ____  ____  ______
    / | / /__  _  ____  _______    / __ \\/ __ \\/ ____/
@@ -7,143 +6,196 @@
  / /|  /  __/>  </ /_/ (__  )   / _, _/ ____/ /___   
 /_/ |_/\\___/_/|_|\\__,_/____/   /_/ |_/_/    \\____/   
                                                      
-    XEEA Nexus - Coercion Discovery Module
-    Module: coercion_discovery.py
-    Purpose: Probe for vulnerable RPC endpoints (MS-RPRN, MS-EFSRPC, MS-FSRVP)
-    Branding: PURE XEEA
+    Nexus Coercion Discovery Module
+    XEEA Nexus - Pure Orchestration Stealth Layer
 """
 
 import sys
 import logging
-from impacket.dcerpc.v5 import transport, rpcrt
-from impacket.uuid import uuidtostring, string_to_bin
 from rich.console import Console
 from rich.table import Table
+from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-# Suppress impacket logging
-logging.getLogger('impacket').setLevel(logging.ERROR)
+from impacket.dcerpc.v5 import transport
+from impacket.dcerpc.v5 import rpcrt
+from impacket.dcerpc.v5.rpcrt import DCERPCException
+
+# Suppress impacket logging for clean XEEA output
+logging.getLogger("impacket").setLevel(logging.ERROR)
+
+console = Console()
 
 class NexusCoercionDiscovery:
     """
-    Modular class for discovering coercion-vulnerable RPC endpoints on Windows hosts.
-    Integrates with XEEA Nexus Core.
+    Discovery module to probe Windows hosts for exposed RPC endpoints 
+    susceptible to coercion attacks (MS-RPRN, MS-EFSRPC, MS-FSRVP).
     """
     
-    ENDPOINTS = {
+    PROTOCOLS = {
         'MS-RPRN': {
+            'name': 'Print System (MS-RPRN)',
             'uuid': '12345678-1234-ABCD-EF00-0123456789AB',
-            'pipes': [r'\pipe\spoolss'],
-            'description': 'Print System Remote Protocol'
+            'version': '1.0',
+            'pipes': ['\\pipe\\spoolss'],
+            'vuln_id': 'PrinterBug'
         },
         'MS-EFSRPC': {
-            'uuid': 'c681d588-4288-409d-8302-601401344446',
-            'pipes': [r'\pipe\efsrpc', r'\pipe\lsarpc'],
-            'description': 'Encrypting File System Remote (EFSRPC)'
+            'name': 'EFS Remote (MS-EFSRPC)',
+            'uuid': 'c681d3ad-9e4b-47a2-be56-4c47411af910',
+            'version': '1.0',
+            'pipes': ['\\pipe\\efsrpc', '\\pipe\\lsarpc'],
+            'vuln_id': 'PetitPotam'
         },
         'MS-FSRVP': {
-            'uuid': 'a074f0b6-333d-47a2-9ca0-c3d446ec2a46',
-            'pipes': [r'\pipe\FssagentRpc'],
-            'description': 'File Server Remote VSS Protocol'
+            'name': 'File Server VSS (MS-FSRVP)',
+            'uuid': 'a8e0653c-2744-4389-9157-370dfb334ae0',
+            'version': '1.0',
+            'pipes': ['\\pipe\\FssagentRpc'],
+            'vuln_id': 'ShadowCoerce'
         }
     }
 
-    def __init__(self, target_list, verbose=False):
-        self.console = Console()
-        if isinstance(target_list, str):
-            self.targets = [target_list]
+    def __init__(self, targets, username='', password='', domain='', hashes='', port=445):
+        """
+        Initialize the discovery module.
+        :param targets: List of target IPs or hostnames
+        """
+        if isinstance(targets, str):
+            self.targets = [targets]
         else:
-            self.targets = target_list
-        self.verbose = verbose
-        self.results = []
-
-    def _check_binding(self, target, pipe, interface_uuid):
-        """
-        Attempts to bind to a specific pipe and interface.
-        Stealth mode: Only binding, no payload.
-        """
-        string_binding = r'ncacn_np:%s[%s]' % (target, pipe)
-        try:
-            rpc_transport = transport.DCERPCTransportFactory(string_binding)
-            # Use anonymous/null session if possible, or guest
-            rpc_transport.set_credentials('', '', '', '', '')
-            rpc_transport.set_connect_timeout(5)
+            self.targets = targets
             
-            dce = rpc_transport.get_dce_rpc()
+        self.username = username
+        self.password = password
+        self.domain = domain
+        self.lmhash = ''
+        self.nthash = ''
+        self.port = port
+        
+        if hashes:
+            self.lmhash, self.nthash = hashes.split(':')
+
+    def _probe_pipe(self, target, pipe, uuid, version):
+        """
+        Internal probe to verify if a specific interface can be bound on a pipe.
+        """
+        string_binding = f'ncacn_np:{target}[{pipe}]'
+        rpctransport = transport.DCERPCTransportFactory(string_binding)
+        rpctransport.set_dport(self.port)
+        
+        # Optional credentials
+        if hasattr(rpctransport, 'set_credentials'):
+            rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash)
+
+        try:
+            dce = rpctransport.get_dce_rpc()
             dce.connect()
-            dce.bind(string_to_bin(interface_uuid))
+            # Perform Stealth Binding - verifying availability without coercion payload
+            dce.bind(rpcrt.MSRPC_UUID_PORT(uuid, version))
             dce.disconnect()
-            return True
-        except Exception:
-            return False
+            return True, "Success"
+        except DCERPCException as e:
+            error_msg = str(e)
+            if 'abstract_syntax_not_supported' in error_msg:
+                return False, "Not Supported"
+            elif 'access_denied' in error_msg.lower():
+                return False, "Access Denied"
+            return False, error_msg
+        except Exception as e:
+            return False, str(e)
 
     def run_stealth_scan(self):
         """
-        Executes the stealth discovery scan across all targets.
+        Executes a stealth scan against all configured targets.
         """
-        self.console.print("[bold cyan][*] Starting XEEA Nexus Stealth Coercion Discovery...[/bold cyan]")
+        console.print(Panel("[bold cyan]Nexus Discovery[/bold cyan]: Executing Stealth RPC Binding Probe...", border_style="blue"))
+        
+        results = []
         
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
-            console=self.console
+            console=console
         ) as progress:
+            
             for target in self.targets:
-                target_task = progress.add_task(f"Scanning {target}...", total=len(self.ENDPOINTS))
-                target_results = {'target': target, 'vulnerabilities': {}}
+                target_task = progress.add_task(description=f"Probing {target}...", total=len(self.PROTOCOLS))
                 
-                for protocol, data in self.ENDPOINTS.items():
-                    is_vulnerable = False
-                    for pipe in data['pipes']:
-                        if self._check_binding(target, pipe, data['uuid']):
-                            is_vulnerable = True
-                            break
+                target_res = {
+                    'target': target,
+                    'protocols': {}
+                }
+                
+                for proto_key, proto_info in self.PROTOCOLS.items():
+                    progress.update(target_task, description=f"Probing {target} -> {proto_info['name']}")
                     
-                    target_results['vulnerabilities'][protocol] = is_vulnerable
+                    is_available = False
+                    details = "None Available"
+                    
+                    for pipe in proto_info['pipes']:
+                        success, reason = self._probe_pipe(target, pipe, proto_info['uuid'], proto_info['version'])
+                        if success:
+                            is_available = True
+                            details = pipe
+                            break
+                        else:
+                            details = reason
+                            
+                    target_res['protocols'][proto_key] = {
+                        'status': "[bold green]VULNERABLE[/bold green]" if is_available else "[dim red]NOT FOUND[/dim red]",
+                        'details': details,
+                        'available': is_available
+                    }
                     progress.advance(target_task)
                 
-                self.results.append(target_results)
+                results.append(target_res)
 
-        self._display_results()
+        self._display_results(results)
+        return results
 
-    def _display_results(self):
+    def _display_results(self, results):
         """
-        Displays scan results in a Rich table.
+        Render discovery results in a pure XEEA Nexus table.
         """
-        table = Table(title="XEEA Nexus - Coercion Discovery Results", border_style="red", header_style="bold magenta")
-        table.add_column("Target Host", style="cyan")
+        table = Table(title="Nexus Discovery - Coercion Exposure Map", title_style="bold yellow", border_style="red")
+        
+        table.add_column("Target Host", style="cyan", no_wrap=True)
         table.add_column("MS-RPRN", justify="center")
         table.add_column("MS-EFSRPC", justify="center")
         table.add_column("MS-FSRVP", justify="center")
-        table.add_column("Status", justify="right")
+        table.add_column("Vector Summary", style="dim italic")
 
-        for res in self.results:
-            vulns = res['vulnerabilities']
+        for res in results:
+            vectors = []
+            for k, v in res['protocols'].items():
+                if v['available']:
+                    vectors.append(self.PROTOCOLS[k]['vuln_id'])
             
-            # Formatting status with symbols
-            rprn = "[bold green]EXPOSED[/bold green]" if vulns['MS-RPRN'] else "[dim]Closed[/dim]"
-            efs = "[bold green]EXPOSED[/bold green]" if vulns['MS-EFSRPC'] else "[dim]Closed[/dim]"
-            fsrvp = "[bold green]EXPOSED[/bold green]" if vulns['MS-FSRVP'] else "[dim]Closed[/dim]"
+            summary = ", ".join(vectors) if vectors else "No exposure detected"
             
-            any_exposed = any(vulns.values())
-            overall_status = "[bold red]VULNERABLE[/bold red]" if any_exposed else "[bold blue]SECURE[/bold blue]"
-            
-            table.add_row(res['target'], rprn, efs, fsrvp, overall_status)
+            table.add_row(
+                res['target'],
+                res['protocols']['MS-RPRN']['status'],
+                res['protocols']['MS-EFSRPC']['status'],
+                res['protocols']['MS-FSRVP']['status'],
+                summary
+            )
 
-        self.console.print("\n")
-        self.console.print(table)
+        console.print("\n")
+        console.print(table)
         
-        if any(any(r['vulnerabilities'].values()) for r in self.results):
-            self.console.print("\n[bold yellow][!] High-value coercion paths discovered. Proceed with XEEA Relay pipeline.[/bold yellow]")
+        exposed_count = sum(1 for res in results if any(p['available'] for p in res['protocols'].values()))
+        if exposed_count > 0:
+            console.print(Panel(f"[bold red][!] Discovery complete. {exposed_count} targets show coercion exposure.[/bold red]\n[yellow]Ready for Nexus-Relay escalation cycle.[/yellow]", border_style="red"))
         else:
-            self.console.print("\n[dim][*] No exposed coercion endpoints detected on the specified targets.[/dim]")
+            console.print("[bold green][+] Discovery complete. No immediate coercion vectors identified with current privileges.[/bold green]")
 
 if __name__ == "__main__":
-    # Standalone execution test
+    # Standalone execution for testing
     if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <target>")
+        console.print("[red]Usage: python3 coercion_discovery.py <target_ip>[/red]")
         sys.exit(1)
-    
-    target = sys.argv[1]
-    discovery = NexusCoercionDiscovery(target)
+        
+    discovery = NexusCoercionDiscovery(sys.argv[1])
     discovery.run_stealth_scan()

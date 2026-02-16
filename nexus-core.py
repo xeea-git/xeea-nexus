@@ -20,9 +20,9 @@ from rich.table import Table
 try:
     from esc11_module import NexusESC11
     from stager_module import NexusStager
-    # from coercion_discovery import NexusCoercionDiscovery # Pending build
+    from coercion_discovery import NexusCoercionDiscovery
 except ImportError as e:
-    # Modules might not be in path during dev
+    # Handle missing modules gracefully
     pass
 
 console = Console()
@@ -73,10 +73,15 @@ def main():
 
     # Module Orchestration Logic
     if args.scan:
+        if not args.target:
+            console.print("[bold red][!] Target is required for scanning ops.[/bold red]")
+            sys.exit(1)
         console.print("[bold blue][*] Initializing Coercion Discovery Module...[/bold blue]")
-        # nexus_discovery = NexusCoercionDiscovery(args.target)
-        # nexus_discovery.run_stealth_scan()
-        console.print("[yellow][!] Coercion Discovery module is currently being built by the fleet.[/yellow]")
+        try:
+            nexus_discovery = NexusCoercionDiscovery(args.target)
+            nexus_discovery.run_stealth_scan()
+        except NameError:
+            console.print("[bold red][!] Coercion Discovery module not found in path.[/bold red]")
 
     if args.esc11:
         if not args.target or not args.ca:
