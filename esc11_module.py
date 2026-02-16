@@ -7,7 +7,7 @@
  / /|  /  __/>  </ /_/ (__  )   / _, _/ ____/ /___   
 /_/ |_/\___/_/|_|\__,_/____/   /_/ |_/_/    \____/   
                                                      
-    Nexus AD CS ESC11 Relay Scaffold
+    XEEA Nexus AD CS ESC11 Relay Module
     Target: ICertPassage RPC Interface (MS-ICRP)
     UUID: 91ae6060-9e3c-11cf-8d7c-00aa00c091be
     

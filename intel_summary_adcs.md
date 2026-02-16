@@ -1,4 +1,4 @@
-# Project Nexus: Intelligence Summary (AD CS ESC9-ESC13)
+# XEEA Nexus: Intelligence Summary (AD CS ESC9-ESC13)
 # Protocol: Pure English / XEEA Internal Use Only
 
 ## 1. ESC11: Relay to ICertPassage (RPC)
