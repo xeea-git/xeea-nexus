@@ -22,6 +22,10 @@ Nexus provides the most comprehensive implementation of recent AD CS vulnerabili
 - **Multi-Stage Execution**: Transition-based memory protection (RW -> RX) to evade scanners.
 - **Process Injection**: Professional, high-stability injection techniques for persistent access.
 
+### 4. Dynamic Visualization & Plugin Architecture
+- **Nexus Visualizer**: Integrated Mermaid.js engine for real-time attack chain visualization (ASCII/SVG).
+- **Extensible Plugin System**: Hot-pluggable architecture for custom modules, listeners, and report generators.
+
 ## 🛠 Usage
 
 ```bash

@@ -1,0 +1,19 @@
+{
+  "name": "xeea-nexus-core",
+  "version": "1.0.0",
+  "description": "![XEEA Nexus Banner](https://img.shields.io/badge/XEEA-Nexus-red?style=for-the-badge) **The industry-standard orchestrator for multi-protocol coercion and escalation.**",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://megamind-bot:14d4200e0d36046a13122947e89a3ea7f750915a@git.cxntz0ne.eu.org/megamind-bot/xeea-nexus.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "beautiful-mermaid": "^0.1.3"
+  }
+}

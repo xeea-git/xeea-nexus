@@ -17,13 +17,13 @@ from rich.panel import Panel
 from rich.table import Table
 
 # Import Nexus Modules
-try:
-    from esc11_module import NexusESC11
-    from stager_module import NexusStager
-    from coercion_discovery import NexusCoercionDiscovery
-except ImportError as e:
-    # Handle missing modules gracefully
-    pass
+from modules.cert_module import NexusCertMaster
+from modules.shadow_module import NexusShadowLink
+from modules.ui_dashboard import NexusDashboard
+from plugins.plugin_manager import PluginManager
+from plugins.mermaid_plugin import MermaidVisualizer
+from listeners.listener_engine import ListenerManager
+import asyncio
 
 console = Console()
 
@@ -43,6 +43,10 @@ def print_banner():
 def main():
     print_banner()
     
+    # Initialize Plugin System
+    plugin_mgr = PluginManager(None) # Passing None for core for now
+    visualizer = plugin_mgr.load_plugin(MermaidVisualizer)
+
     parser = argparse.ArgumentParser(description="XEEA Nexus - Unified Red Team Orchestrator")
     
     # Global Options
@@ -57,19 +61,53 @@ def main():
     
     # Escalation Options
     escalation_group = parser.add_argument_group("Escalation Module")
-    escalation_group.add_argument("--esc11", action="store_true", help="Trigger ESC11 (Relay to ICertPassage)")
-    escalation_group.add_argument("--ca", help="Certificate Authority Name (for ESC11)")
+    escalation_group.add_argument("--esc1", action="store_true", help="Trigger ESC1 (Template Misconfiguration)")
+    escalation_group.add_argument("--shadow", action="store_true", help="Trigger Shadow Credentials Persistence")
+    escalation_group.add_argument("--ca", help="Certificate Authority Name")
+    escalation_group.add_argument("--template", help="Vulnerable Template Name")
     
     # Stealth Options
     stealth_group = parser.add_argument_group("Stealth & Persistence")
     stealth_group.add_argument("--stager", help="Generate or execute a stealth stager", action="store_true")
     stealth_group.add_argument("--payload", help="Path to shellcode/payload for stager")
 
+    # UI Options
+    ui_group = parser.add_argument_group("Interface")
+    ui_group.add_argument("--gui", action="store_true", help="Launch the Nexus Orchestrator Dashboard")
+    ui_group.add_argument("--viz", help="Generate a Mermaid diagram (ASCII) from input string")
+
+    # C2 Options
+    c2_group = parser.add_argument_group("C2 Operations")
+    c2_group.add_argument("--listen", help="Start a listener (e.g. HTTP:8080)")
+
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
         
     args = parser.parse_args()
+
+    if args.gui:
+        console.print("[bold red][*] Launching Nexus Dashboard...[/bold red]")
+        dash = NexusDashboard()
+        dash.run()
+        sys.exit(0)
+
+    if args.viz:
+        console.print("[bold cyan][*] Generating XEEA Visual Intelligence...[/bold cyan]")
+        result = visualizer.run(content=args.viz)
+        console.print(Panel(result, title="Nexus Visualization", border_style="cyan"))
+        sys.exit(0)
+
+    if args.listen:
+        try:
+            proto, port = args.listen.split(':')
+            console.print(f"[bold green][*] Initializing {proto} Listener on port {port}...[/bold green]")
+            mgr = ListenerManager()
+            mgr.add_listener(proto, "0.0.0.0", int(port))
+            asyncio.run(mgr.start_all())
+        except ValueError:
+            console.print("[bold red][!] Invalid listener format. Use PROTO:PORT (e.g. HTTP:8080)[/bold red]")
+        sys.exit(0)
 
     # Module Orchestration Logic
     if args.scan:
@@ -83,14 +121,19 @@ def main():
         except NameError:
             console.print("[bold red][!] Coercion Discovery module not found in path.[/bold red]")
 
-    if args.esc11:
-        if not args.target or not args.ca:
-            console.print("[bold red][!] Target and CA Name are required for ESC11 ops.[/bold red]")
+    if args.esc1:
+        if not args.target:
+            console.print("[bold red][!] Target is required for ESC1 ops.[/bold red]")
             sys.exit(1)
-        
-        console.print(f"[bold green][*] Deploying ESC11 Module against {args.target}...[/bold green]")
-        # nexus_esc11 = NexusESC11(args.target, args.ca)
-        # nexus_esc11.connect(...)
+        console.print(f"[bold green][*] Deploying CertMaster Module against {args.target}...[/bold green]")
+        # cert_master = NexusCertMaster(args.target, args.ca)
+
+    if args.shadow:
+        if not args.target:
+            console.print("[bold red][!] Target is required for Shadow Creds ops.[/bold red]")
+            sys.exit(1)
+        console.print(f"[bold cyan][*] Deploying ShadowLink Persistence against {args.target}...[/bold cyan]")
+        # shadow_link = NexusShadowLink(args.target, args.target)
 
     if args.stager:
         console.print("[bold magenta][*] Initializing Nexus-Gate Stealth Stager...[/bold magenta]")
